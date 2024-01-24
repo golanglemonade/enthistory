@@ -384,6 +384,10 @@ func (h *HistoryExtension) createHistoryFields(schemaFields []*load.Field) []*lo
 			Annotations: field.Annotations,
 			Comment:     field.Comment,
 		}
+
+		// This wipes references to fields from mixins
+		// which we want so we don't include anything other than fields
+		// from our mixins
 		newField.Position = &load.Position{
 			Index:      i,
 			MixedIn:    false,

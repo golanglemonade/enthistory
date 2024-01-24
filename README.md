@@ -1,5 +1,7 @@
 # enthistory
 
+Credit to [flume/enthistory](https://github.com/flume/enthistory) for the original code
+
 enthistory is a powerful extension for generating history tables using ent.
 
 ## Installation
@@ -7,7 +9,7 @@ enthistory is a powerful extension for generating history tables using ent.
 You can install enthistory by running the following command:
 
 ```shell
-go get github.com/flume/enthistory@latest
+go get github.com/datumforge/enthistory@latest
 ```
 
 In addition to installing enthistory, you need to create two files in your `ent` directory: `entc.go` and `generate.go`.
@@ -20,7 +22,7 @@ package main
 
 import (
 	"log"
-	"github.com/flume/enthistory"
+	"github.com/datumforge/enthistory"
 	"entgo.io/ent/entc"
 )
 
@@ -29,7 +31,6 @@ func main() {
 		&gen.Config{},
 		entc.Extensions(
 			enthistory.NewHistoryExtension(
-				enthistory.WithUpdatedBy("userId", enthistory.ValueTypeInt),
 				enthistory.WithAuditing(),
 			),
 		),
@@ -46,9 +47,6 @@ package ent
 
 //go:generate go run -mod=mod entc.go
 ```
-
-> **Note:** Starting from enthistory v0.8.0, ent v0.12.x or greater is required. If you are using an older version of
-> ent, install enthistory v0.7.0 instead by running `go get github.com/flume/enthistory@v0.7.0`.
 
 ## Usage
 
@@ -202,6 +200,22 @@ enthistory.WithUpdatedBy("userId", enthistory.ValueTypeInt)
 
 // Example for tracking user email
 enthistory.WithUpdatedBy("userEmail", enthistory.ValueTypeString)
+```
+
+### Deleted By
+
+To track which users are making changes to your tables, you can use the `enthistory.WithDeletedBy()` option when
+initializing the extension. You need to provide a key name (string) and specify the type of
+value (`enthistory.ValueTypeInt` for integers or `enthistory.ValueTypeString` for strings). The value corresponding to
+the key should be stored in the context using `context.WithValue()`. If you don't plan to use this feature, you can omit
+it.
+
+```go
+// Example for tracking user ID
+enthistory.WithDeletedBy("userId", enthistory.ValueTypeInt)
+
+// Example for tracking user email
+enthistory.WithDeletedBy("userEmail", enthistory.ValueTypeString)
 ```
 
 ### Auditing

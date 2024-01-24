@@ -354,7 +354,8 @@ func (h *HistoryExtension) removeOldGenerated(schemas []*load.Schema) error {
 func (h *HistoryExtension) createHistoryFields(schemaFields []*load.Field) []*load.Field {
 	historyFields := []*load.Field{}
 
-	// Why is the 4?
+	// start at 3 because there are three base fields for history tables
+	// history_time, ref, and operation
 	i := 3
 
 	for _, field := range schemaFields {

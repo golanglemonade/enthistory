@@ -106,7 +106,7 @@ func (c Change) String(op enthistory.OpType) string {
 	if c.New != nil {
 		val, err := json.Marshal(c.New)
 		if err != nil {
-			newstr = fmt.Sprintf("%#v", c.New)
+			newstr = fmt.Sprintf("%v", c.New)
 		} else {
 			newstr = string(val)
 		}
@@ -114,18 +114,18 @@ func (c Change) String(op enthistory.OpType) string {
 	if c.Old != nil {
 		val, err := json.Marshal(c.Old)
 		if err != nil {
-			oldstr = fmt.Sprintf("%#v", c.Old)
+			oldstr = fmt.Sprintf("%v", c.Old)
 		} else {
 			oldstr = string(val)
 		}
 	}
 	switch op {
 	case enthistory.OpTypeInsert:
-		return fmt.Sprintf("%s: %#s", c.FieldName, newstr)
+		return fmt.Sprintf("%s: %s", c.FieldName, newstr)
 	case enthistory.OpTypeDelete:
-		return fmt.Sprintf("%s: %#s", c.FieldName, oldstr)
+		return fmt.Sprintf("%s: %s", c.FieldName, oldstr)
 	default:
-		return fmt.Sprintf("%s: %#s -> %#s", c.FieldName, oldstr, newstr)
+		return fmt.Sprintf("%s: %s -> %s", c.FieldName, oldstr, newstr)
 	}
 }
 

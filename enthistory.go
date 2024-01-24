@@ -26,6 +26,11 @@ type UpdatedBy struct {
 	valueType ValueType
 }
 
+type DeletedBy struct {
+	key       string
+	valueType ValueType
+}
+
 type FieldProperties struct {
 	Nillable  bool
 	Immutable bool
@@ -33,6 +38,7 @@ type FieldProperties struct {
 
 type Config struct {
 	UpdatedBy        *UpdatedBy
+	DeletedBy        *DeletedBy
 	Auditing         bool
 	SchemaPath       string
 	FieldProperties  *FieldProperties
@@ -62,6 +68,17 @@ func WithUpdatedBy(key string, valueType ValueType) ExtensionOption {
 	}
 }
 
+// WithDeletedBy sets the key and type for pulling updated_by from the context,
+// usually done via a middleware to track which users are making which changes
+func WithDeletedBy(key string, valueType ValueType) ExtensionOption {
+	return func(ex *HistoryExtension) {
+		ex.config.DeletedBy = &DeletedBy{
+			key:       key,
+			valueType: valueType,
+		}
+	}
+}
+
 // WithAuditing allows you to turn on the code generation for the `.Audit()` method
 func WithAuditing() ExtensionOption {
 	return func(ex *HistoryExtension) {
@@ -78,7 +95,7 @@ func WithSchemaPath(schemaPath string) ExtensionOption {
 }
 
 // WithNillableFields allows you to set all tracked fields in history to Nillable
-// except enthistory managed fields (history_time, ref, operation, & updated_by)
+// except enthistory managed fields (history_time, ref, operation, updated_by, & deleted_by)
 func WithNillableFields() ExtensionOption {
 	return func(ex *HistoryExtension) {
 		ex.config.FieldProperties.Nillable = true
@@ -123,6 +140,8 @@ type templateInfo struct {
 	OriginalTableName    string
 	WithUpdatedBy        bool
 	UpdatedByValueType   string
+	WithDeletedBy        bool
+	DeletedByValueType   string
 	WithHistoryTimeIndex bool
 }
 
@@ -160,12 +179,14 @@ func (h *HistoryExtension) generateHistorySchema(schema *load.Schema, IdType str
 	if err != nil {
 		return nil, err
 	}
+
 	info := templateInfo{
 		TableName:         fmt.Sprintf("%v_history", getSchemaTableName(schema)),
 		OriginalTableName: schema.Name,
 		SchemaPkg:         pkg,
 	}
 
+	// add updated_by and deleted_by fields
 	if h.config != nil {
 		if h.config.UpdatedBy != nil {
 			valueType := h.config.UpdatedBy.valueType
@@ -175,6 +196,15 @@ func (h *HistoryExtension) generateHistorySchema(schema *load.Schema, IdType str
 				info.UpdatedByValueType = "String"
 			}
 			info.WithUpdatedBy = true
+		}
+		if h.config.DeletedBy != nil {
+			valueType := h.config.DeletedBy.valueType
+			if valueType == ValueTypeInt {
+				info.DeletedByValueType = "Int"
+			} else if valueType == ValueTypeString {
+				info.DeletedByValueType = "String"
+			}
+			info.WithDeletedBy = true
 		}
 		info.WithHistoryTimeIndex = h.config.HistoryTimeIndex
 	}
@@ -203,15 +233,22 @@ func (h *HistoryExtension) generateHistorySchema(schema *load.Schema, IdType str
 		historySchema.Fields = append(historySchema.Fields, updatedByField)
 	}
 
+	deletedByField, err := getDeletedByField(info.DeletedByValueType)
+	if err != nil {
+		return nil, err
+	}
+
+	if deletedByField != nil {
+		historySchema.Fields = append(historySchema.Fields, deletedByField)
+	}
+
 	if info.WithHistoryTimeIndex {
 		historySchema.Indexes = append(historySchema.Indexes, &load.Index{Fields: []string{"history_time"}})
 	}
 
 	var historyFields []*load.Field
 	for _, field := range h.createHistoryFields(schema.Fields) {
-		if field.Name != "id" {
-			historyFields = append(historyFields, field)
-		}
+		historyFields = append(historyFields, field)
 	}
 
 	// merge the original schema onto the history schema
@@ -315,50 +352,46 @@ func (h *HistoryExtension) removeOldGenerated(schemas []*load.Schema) error {
 }
 
 func (h *HistoryExtension) createHistoryFields(schemaFields []*load.Field) []*load.Field {
-	historyFields := make([]*load.Field, len(schemaFields))
-	fieldPropertiesSet := h.config.FieldProperties != nil
-	i := 4
-	for j, field := range schemaFields {
+	historyFields := []*load.Field{}
+
+	// Why is the 4?
+	i := 3
+
+	for _, field := range schemaFields {
 		nillable := field.Nillable
 		immutable := field.Immutable
 		optional := field.Optional
-		if fieldPropertiesSet && field.Name != "id" {
-			nillable = h.config.FieldProperties.Nillable || nillable
-			optional = h.config.FieldProperties.Nillable || optional
-			immutable = h.config.FieldProperties.Immutable || immutable
-		}
 
 		newField := load.Field{
-			Name:          field.Name,
-			Info:          copyRef(field.Info),
-			Tag:           field.Tag,
-			Size:          copyRef(field.Size),
-			Enums:         field.Enums,
-			Unique:        false,
-			Nillable:      nillable,
-			Optional:      optional,
-			Default:       field.Default,
-			DefaultValue:  field.DefaultValue,
-			DefaultKind:   field.DefaultKind,
-			UpdateDefault: field.UpdateDefault,
-			Immutable:     immutable,
-			Validators:    field.Validators,
-			StorageKey:    field.StorageKey,
-			Position:      copyRef(field.Position),
-			Sensitive:     field.Sensitive,
-			SchemaType:    field.SchemaType,
-			Annotations:   field.Annotations,
-			Comment:       field.Comment,
+			Name:         field.Name,
+			Info:         copyRef(field.Info),
+			Tag:          field.Tag,
+			Size:         copyRef(field.Size),
+			Enums:        field.Enums,
+			Unique:       false,
+			Nillable:     nillable,
+			Optional:     optional,
+			Default:      field.Default,
+			DefaultValue: field.DefaultValue,
+			DefaultKind:  field.DefaultKind,
+			Immutable:    immutable,
+			// Validators:   field.Validators,
+			StorageKey:  field.StorageKey,
+			Position:    copyRef(field.Position),
+			Sensitive:   field.Sensitive,
+			SchemaType:  field.SchemaType,
+			Annotations: field.Annotations,
+			Comment:     field.Comment,
 		}
-		if !field.Position.MixedIn {
-			newField.Position = &load.Position{
-				Index:      i,
-				MixedIn:    false,
-				MixinIndex: 0,
-			}
-			i += 1
+		newField.Position = &load.Position{
+			Index:      i,
+			MixedIn:    false,
+			MixinIndex: 0,
 		}
-		historyFields[j] = &newField
+		i += 1
+
+		historyFields = append(historyFields, &newField)
 	}
+
 	return historyFields
 }

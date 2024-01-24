@@ -62,6 +62,16 @@ func getUpdatedByField(updatedByValueType string) (*load.Field, error) {
 	return nil, nil
 }
 
+func getDeletedByField(deletedByValueType string) (*load.Field, error) {
+	if deletedByValueType == "String" {
+		return load.NewField(field.String("deleted_by").Optional().Nillable().Immutable().Descriptor())
+	}
+	if deletedByValueType == "Int" {
+		return load.NewField(field.Int("deleted_by").Optional().Nillable().Immutable().Descriptor())
+	}
+	return nil, nil
+}
+
 func getHistoryAnnotations(schema *load.Schema) Annotations {
 	annotations := Annotations{}
 	if historyAnnotations, ok := schema.Annotations["History"].(map[string]any); ok {

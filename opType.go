@@ -1,6 +1,11 @@
 package enthistory
 
-import "database/sql/driver"
+import (
+	"database/sql/driver"
+	"errors"
+	"io"
+	"strconv"
+)
 
 type OpType string
 
@@ -28,4 +33,33 @@ func (op OpType) Value() (driver.Value, error) {
 
 func (op OpType) String() string {
 	return string(op)
+}
+
+func (op *OpType) Scan(v any) error {
+	if v == nil {
+		*op = OpType("")
+		return nil
+	}
+
+	switch src := v.(type) {
+	case string:
+		*op = OpType(src)
+	case []byte:
+		*op = OpType(string(src))
+	case OpType:
+		*op = src
+	default:
+		return errors.New("unsupported type")
+	}
+
+	return nil
+}
+
+func (op OpType) MarshalGQL(w io.Writer) {
+	// graphql ID is a scalar which must be quoted
+	io.WriteString(w, strconv.Quote(string(op))) //nolint:errcheck
+}
+
+func (op *OpType) UnmarshalGQL(v interface{}) error {
+	return op.Scan(v)
 }
